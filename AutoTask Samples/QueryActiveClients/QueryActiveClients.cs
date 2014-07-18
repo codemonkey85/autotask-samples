@@ -30,68 +30,71 @@ using System.ServiceModel.Description;
 
 namespace AutoTask_Samples
 {
-        /// <summary>
-        /// Demonstrates how to retrieve all active clients
-        /// </summary>
-        class QueryActiveClients
+    /// <summary>
+    /// Demonstrates how to retrieve all active clients
+    /// </summary>
+    class QueryActiveClients
+    {
+        // the userID and password used to authenticate to AutoTask
+        private static string auth_user_id = Properties.Settings.Default.username; // user@domain.com
+        private static string auth_user_password = Properties.Settings.Default.password;
+        private static ATWSZoneInfo zoneInfo = null;
+
+        public static void Main()
         {
-                // the userID and password used to authenticate to AutoTask
-                private static string auth_user_id = ""; // user@domain.com
-                private static string auth_user_password = "";
-                private static ATWSZoneInfo zoneInfo = null;
 
-                public static void Main ()
+            // demonstrates how to intellegently get the zone information.
+            // autotask will tell you which zone URL to use based on the userID
+            var client = new ATWSSoapClient();
+            zoneInfo = client.getZoneInfo(auth_user_id);
+            Console.WriteLine("ATWS Zone Info: \n\n"
+                    + "URL = " + zoneInfo.URL);
+
+            // Create the binding.
+            // must use BasicHttpBinding instead of WSHttpBinding
+            // otherwise a "SOAP header Action was not understood." is thrown.
+            BasicHttpBinding myBinding = new BasicHttpBinding();
+            myBinding.Security.Mode = BasicHttpSecurityMode.Transport;
+            myBinding.Security.Transport.ClientCredentialType = HttpClientCredentialType.Basic;
+
+            // Must set the size otherwise
+            //The maximum message size quota for incoming messages (65536) has been exceeded. To increase the quota, use the MaxReceivedMessageSize property on the appropriate binding element.
+            myBinding.MaxReceivedMessageSize = 2147483647;
+
+            // Create the endpoint address.
+            EndpointAddress ea = new EndpointAddress(zoneInfo.URL);
+
+            client = new ATWSSoapClient(myBinding, ea);
+            client.ClientCredentials.UserName.UserName = auth_user_id;
+            client.ClientCredentials.UserName.Password = auth_user_password;
+
+            // query for any account. This should return all accounts since we are retreiving anything greater than 0.
+            StringBuilder sb = new StringBuilder();
+            sb.Append("<queryxml><entity>Account</entity>").Append(System.Environment.NewLine);
+            sb.Append("<query><field>id<expression op=\"greaterthan\">0</expression></field></query>").Append(System.Environment.NewLine);
+            sb.Append("</queryxml>").Append(System.Environment.NewLine);
+
+            // have no clue what this does.
+            AutotaskIntegrations at_integrations = new AutotaskIntegrations();
+
+            // this example will not handle the 500 results limitation.
+            // Autotask only returns up to 500 results in a response. if there are more you must query again for the next 500.
+            var r = client.query(at_integrations, sb.ToString());
+            Console.WriteLine("response ReturnCode = " + r.ReturnCode);
+            if (r.ReturnCode == 1)
+            {
+                if (r.EntityResults.Length > 0)
                 {
-
-                        // demonstrates how to intellegently get the zone information.
-                        // autotask will tell you which zone URL to use based on the userID
-                        var client = new ATWSSoapClient ();
-                        zoneInfo = client.getZoneInfo (auth_user_id);
-                        Console.WriteLine ("ATWS Zone Info: \n\n"
-                                + "URL = " + zoneInfo.URL);
-
-                        // Create the binding.
-                        // must use BasicHttpBinding instead of WSHttpBinding
-                        // otherwise a "SOAP header Action was not understood." is thrown.
-                        BasicHttpBinding myBinding = new BasicHttpBinding ();
-                        myBinding.Security.Mode = BasicHttpSecurityMode.Transport;
-                        myBinding.Security.Transport.ClientCredentialType = HttpClientCredentialType.Basic;
-
-                        // Must set the size otherwise
-                        //The maximum message size quota for incoming messages (65536) has been exceeded. To increase the quota, use the MaxReceivedMessageSize property on the appropriate binding element.
-                        myBinding.MaxReceivedMessageSize = 2147483647;
-
-                        // Create the endpoint address.
-                        EndpointAddress ea = new EndpointAddress (zoneInfo.URL);
-
-                        client = new ATWSSoapClient (myBinding, ea);
-                        client.ClientCredentials.UserName.UserName = auth_user_id;
-                        client.ClientCredentials.UserName.Password = auth_user_password;
-                        
-                        // query for any account. This should return all accounts since we are retreiving anything greater than 0.
-                        StringBuilder sb = new StringBuilder ();
-                        sb.Append ("<queryxml><entity>Account</entity>").Append (System.Environment.NewLine);
-                        sb.Append ("<query><field>id<expression op=\"greaterthan\">0</expression></field></query>").Append (System.Environment.NewLine);
-                        sb.Append ("</queryxml>").Append (System.Environment.NewLine);
-
-                        // have no clue what this does.
-                        AutotaskIntegrations at_integrations = new AutotaskIntegrations ();
-
-                        // this example will not handle the 500 results limitation.
-                        // Autotask only returns up to 500 results in a response. if there are more you must query again for the next 500.
-                        var r = client.query (at_integrations, sb.ToString ());
-                        Console.WriteLine ("response ReturnCode = " + r.ReturnCode);
-                        if (r.ReturnCode == 1) {
-                                if (r.EntityResults.Length > 0) {
-                                        foreach (var item in r.EntityResults) {
-                                                Account acct = (Account)item;
-                                                Console.WriteLine ("Account Name = " + acct.AccountName);
-                                                Console.WriteLine ("Account number = " + acct.AccountNumber);
-                                        }
-                                }
-                        }
-                        Console.ReadLine ();
+                    foreach (var item in r.EntityResults)
+                    {
+                        Account acct = (Account)item;
+                        Console.WriteLine("Account Name = " + acct.AccountName);
+                        Console.WriteLine("Account number = " + acct.AccountNumber);
+                    }
                 }
-
+            }
+            Console.ReadLine();
         }
+
+    }
 }
